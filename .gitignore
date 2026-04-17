@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+Package.resolved
+.DS_Store
+web/svg/
+web/all/
