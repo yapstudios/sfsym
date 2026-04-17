@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" width="900" height="540">
+<style>
+  .title { font: 500 12px -apple-system,"SF Pro Text","Helvetica Neue",system-ui,sans-serif; fill: #8E8E93; letter-spacing: 0.06em; text-transform: uppercase; }
+  .node  { font: 500 13px "SF Mono","JetBrains Mono","Menlo",ui-monospace,monospace; fill: #F2F2F7; letter-spacing: 0.01em; }
+  .sub   { font: 400 11px "SF Mono","JetBrains Mono","Menlo",ui-monospace,monospace; fill: #8E8E93; letter-spacing: 0.02em; }
+  .tag   { font: 500 10px "SF Mono","JetBrains Mono","Menlo",ui-monospace,monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+  .lbl   { font: 400 11px "SF Mono","JetBrains Mono","Menlo",ui-monospace,monospace; fill: #8E8E93; }
+</style>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#6B6B72"/>
+  </marker>
+  <marker id="arrowAccent" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M 0 0 L 10 5 L 0 10 z" fill="#63E6E2"/>
+  </marker>
+</defs>
+
+<rect x="0" y="0" width="900" height="540" rx="10" ry="10" fill="#111113"/>
+
+<!-- Input -->
+<g transform="translate(370, 34)">
+  <rect x="0" y="0" width="160" height="48" rx="7" ry="7" fill="#1C1C1F" stroke="#2B2B2F"/>
+  <text class="tag" x="80" y="18" text-anchor="middle" fill="#63E6E2">input</text>
+  <text class="node" x="80" y="36" text-anchor="middle">sfsym export &lt;name&gt;</text>
+</g>
+
+<!-- AppKit resolution layer -->
+<g transform="translate(270, 116)">
+  <rect x="0" y="0" width="360" height="72" rx="7" ry="7" fill="#1C1C1F" stroke="#2B2B2F"/>
+  <text class="tag" x="180" y="19" text-anchor="middle" fill="#8E8E93">appkit</text>
+  <text class="node" x="180" y="40" text-anchor="middle">NSImage(systemSymbolName:)</text>
+  <text class="sub"  x="180" y="57" text-anchor="middle">+ NSImage.SymbolConfiguration</text>
+</g>
+
+<!-- Private glyph -->
+<g transform="translate(250, 222)">
+  <rect x="0" y="0" width="400" height="72" rx="7" ry="7" fill="#1C1C1F" stroke="#FFD60A" stroke-opacity="0.35"/>
+  <text class="tag" x="200" y="19" text-anchor="middle" fill="#FFD60A">private (via KVC)</text>
+  <text class="node" x="200" y="40" text-anchor="middle">rep._vectorGlyph  →  CUINamedVectorGlyph</text>
+  <text class="sub"  x="200" y="57" text-anchor="middle">Apple's own vector symbol object</text>
+</g>
+
+<!-- Three draw entry points -->
+<g transform="translate(32, 328)">
+  <rect x="0" y="0" width="250" height="74" rx="7" ry="7" fill="#1C1C1F" stroke="#2B2B2F"/>
+  <text class="tag"  x="125" y="18" text-anchor="middle" fill="#63E6E2">vector</text>
+  <text class="node" x="125" y="38" text-anchor="middle">drawInContext:</text>
+  <text class="sub"  x="125" y="56" text-anchor="middle">+ withPaletteColors:</text>
+  <text class="lbl"  x="125" y="70" text-anchor="middle">mono / palette</text>
+</g>
+
+<g transform="translate(325, 328)">
+  <rect x="0" y="0" width="250" height="74" rx="7" ry="7" fill="#1C1C1F" stroke="#2B2B2F"/>
+  <text class="tag"  x="125" y="18" text-anchor="middle" fill="#63E6E2">vector</text>
+  <text class="node" x="125" y="38" text-anchor="middle">_drawHierarchicalLayers</text>
+  <text class="sub"  x="125" y="56" text-anchor="middle">+ colorResolver block</text>
+  <text class="lbl"  x="125" y="70" text-anchor="middle">hierarchical</text>
+</g>
+
+<g transform="translate(618, 328)">
+  <rect x="0" y="0" width="250" height="74" rx="7" ry="7" fill="#1C1C1F" stroke="#2B2B2F"/>
+  <text class="tag"  x="125" y="18" text-anchor="middle" fill="#FF9F0A">raster</text>
+  <text class="node" x="125" y="38" text-anchor="middle">NSBitmapImageRep</text>
+  <text class="sub"  x="125" y="56" text-anchor="middle">+ NSAppearance.darkAqua</text>
+  <text class="lbl"  x="125" y="70" text-anchor="middle">png · multicolor</text>
+</g>
+
+<!-- Intermediate: PDF -->
+<g transform="translate(170, 444)">
+  <rect x="0" y="0" width="260" height="60" rx="7" ry="7" fill="#1C1C1F" stroke="#2B2B2F"/>
+  <text class="tag"  x="130" y="20" text-anchor="middle" fill="#63E6E2">vector pdf content stream</text>
+  <text class="node" x="130" y="42" text-anchor="middle">CGPDFContext path ops</text>
+</g>
+
+<!-- Output: SVG, PDF, PNG -->
+<g transform="translate(462, 444)">
+  <rect x="0" y="0" width="140" height="60" rx="7" ry="7" fill="#1C1C1F" stroke="#63E6E2" stroke-opacity="0.4"/>
+  <text class="tag"  x="70" y="20" text-anchor="middle" fill="#63E6E2">output</text>
+  <text class="node" x="70" y="42" text-anchor="middle">svg / pdf</text>
+</g>
+
+<g transform="translate(620, 444)">
+  <rect x="0" y="0" width="140" height="60" rx="7" ry="7" fill="#1C1C1F" stroke="#FF9F0A" stroke-opacity="0.4"/>
+  <text class="tag"  x="70" y="20" text-anchor="middle" fill="#FF9F0A">output</text>
+  <text class="node" x="70" y="42" text-anchor="middle">png</text>
+</g>
+
+<!-- Arrows -->
+<!-- input → AppKit -->
+<path d="M 450 82 L 450 116" stroke="#6B6B72" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+<!-- AppKit → glyph -->
+<path d="M 450 188 L 450 222" stroke="#6B6B72" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+<!-- glyph → three draws -->
+<path d="M 450 294 L 450 310 L 157 310 L 157 328" stroke="#6B6B72" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+<path d="M 450 294 L 450 328" stroke="#6B6B72" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+<path d="M 450 294 L 450 310 L 743 310 L 743 328" stroke="#6B6B72" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+<!-- two vectors → PDF stream -->
+<path d="M 157 402 L 157 420 L 300 420 L 300 444" stroke="#63E6E2" stroke-opacity="0.55" stroke-width="1.2" fill="none" marker-end="url(#arrowAccent)"/>
+<path d="M 450 402 L 450 420 L 300 420 L 300 444" stroke="#63E6E2" stroke-opacity="0.55" stroke-width="1.2" fill="none" marker-end="url(#arrowAccent)"/>
+<!-- PDF → svg/pdf output via PdfToSvg -->
+<path d="M 430 474 L 462 474" stroke="#63E6E2" stroke-opacity="0.65" stroke-width="1.2" fill="none" marker-end="url(#arrowAccent)"/>
+<text class="lbl" x="446" y="466" text-anchor="middle" fill="#63E6E2" opacity="0.8">PdfToSvg</text>
+<!-- raster → png output -->
+<path d="M 743 402 L 743 420 L 690 420 L 690 444" stroke="#FF9F0A" stroke-opacity="0.6" stroke-width="1.2" fill="none" marker-end="url(#arrow)"/>
+
+<!-- Side path: Assets.car for `sfsym list` -->
+<g transform="translate(40, 38)">
+  <rect x="0" y="0" width="200" height="74" rx="7" ry="7" fill="#1C1C1F" stroke="#2B2B2F" stroke-dasharray="3 3"/>
+  <text class="tag"  x="100" y="18" text-anchor="middle" fill="#8E8E93">offline index</text>
+  <text class="node" x="100" y="38" text-anchor="middle">Assets.car + BOM</text>
+  <text class="sub"  x="100" y="56" text-anchor="middle">FACETKEYS → names</text>
+  <text class="lbl"  x="100" y="70" text-anchor="middle">sfsym list · search</text>
+</g>
+</svg>
