@@ -1,0 +1,15 @@
+.build/
+.swiftpm/
+Package.resolved
+.DS_Store
+web/
+CLAUDE.md
+
+# maintainer tool — regenerates demo.svg; not part of the public distribution
+build-demo-svg.py
+
+# stray export outputs from local smoke tests
+/h.svg
+/s.svg
+/heart.svg
+/weather.svg
