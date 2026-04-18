@@ -162,7 +162,7 @@ Lists the rendering modes available for a symbol.
 
 ```sh
 sfsym modes cloud.sun.rain.fill --json
-# ["monochrome","hierarchical","palette","multicolor"]
+# ["monochrome","hierarchical","palette"]
 ```
 
 ### `colors`
@@ -247,7 +247,7 @@ sfsym completions fish > ~/.config/fish/completions/sfsym.fish
 
 ## Output conventions
 
-- **SVG.** Self-contained, with no external CSS. The `viewBox` is `0 0 size size`, a square canvas with the symbol scaled to fit and centered. A single `<svg>` root contains a Y-flip group that wraps Apple's paths. Every `<path>` carries a `fill` attribute (sRGB hex), a `data-layer` attribute (`monochrome-0`, `hierarchical-N`, or `palette-N`), and `fill-opacity` when alpha is less than 1 or when drawing a hierarchical tier. The geometry matches Apple's PDF output exactly.
+- **SVG.** Self-contained, with no external CSS. The `viewBox` is `0 0 size size`, a square canvas with the symbol scaled to fit and centered. Path coordinates are in standard SVG space (top-left origin), so `<path>` elements can be lifted directly into JSX or HTML without a wrapper transform. Every `<path>` carries a `fill` attribute (sRGB hex), a `data-layer` attribute (`monochrome-0`, `hierarchical-N`, or `palette-N`), and `fill-opacity` when alpha is less than 1 or when drawing a hierarchical tier. The geometry matches Apple's PDF output exactly.
 - **PDF.** Single page, with a `MediaBox` of `size × size` points. Vector for monochrome, hierarchical, and palette modes. Multicolor output embeds a rasterized image.
 - **PNG.** Square output at `2·size × 2·size` pixels (2x pixel density). Rendered under `aqua` so that dynamic colors resolve and half-filled symbols keep their canonical orientation.
 
