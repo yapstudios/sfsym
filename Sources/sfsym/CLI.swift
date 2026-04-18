@@ -168,7 +168,7 @@ Examples:
 
 /// Single source of truth for the tool's version string. Used by `--version`,
 /// the Homebrew formula's test, and the `schema` command.
-let sfsymVersion = "0.2.9"
+let sfsymVersion = "0.2.10"
 
 /// Shared export dispatcher: takes raw argv starting at the symbol name and runs
 /// through format/mode/color/output parsing. Used by both `export` and `batch`.

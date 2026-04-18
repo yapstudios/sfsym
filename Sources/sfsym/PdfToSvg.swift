@@ -27,6 +27,10 @@ struct PdfPath {
 enum PdfToSvg {
 
     /// Parse all painted paths out of the given PDF bytes.
+    ///
+    /// Paths are emitted with PDF's Y-up coordinate origin pre-flipped into
+    /// SVG's Y-down space against `pageSize.height`, so the caller can drop
+    /// them straight into an `<svg>` without a wrapper transform.
     static func extractPaths(from pdf: Data, pageSize: CGSize) -> [PdfPath] {
         var paths: [PdfPath] = []
         // Scan the raw PDF bytes once for ExtGState definitions. Apple emits
@@ -161,7 +165,13 @@ enum PdfToSvg {
             var fill: CGColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
             var ca: Double = 1   // non-stroke alpha from ExtGState `/ca`
         }
-        var stack: [GS] = [GS()]
+        // Seed the base CTM with a Y-flip against the page height so every
+        // coordinate runs through `applyCTM` comes out in SVG (top-left) space.
+        // PDF `cm` operators concatenate onto this, leaving `<svg>` consumers
+        // with paths they can embed without a wrapper `<g transform>`.
+        var baseGS = GS()
+        baseGS.ctm = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: pageSize.height)
+        var stack: [GS] = [baseGS]
         var numStack: [Double] = []
         var d = ""          // current SVG d-string
         var hasSub = false  // whether the current subpath has a moveto
@@ -375,9 +385,10 @@ enum PdfToSvg {
 // MARK: - Output composition
 
 enum SvgEmitter {
-    /// Y-up → Y-down flip: PDF coordinate origin is bottom-left; SVG is top-left.
-    /// We emit a viewBox equal to the PDF mediaBox and wrap all paths in a group
-    /// with `transform="matrix(1 0 0 -1 0 H)"`.
+    /// Path coordinates arrive from `PdfToSvg.extractPaths` already flipped into
+    /// SVG's Y-down space (the base CTM in the interpreter seeds the flip), so
+    /// no wrapper `<g transform>` is needed. Consumers can lift the `<path>`
+    /// elements directly into JSX/HTML without a surrounding flip.
     ///
     /// Eraser handling (pencil.line, person.2, tray.2, message, book,
     /// airplane.circle.fill, …): Apple emits alpha-0 paths inline that act as
@@ -481,12 +492,10 @@ enum SvgEmitter {
         out += "viewBox=\"\(fmt(viewBox.minX)) \(fmt(viewBox.minY)) \(fmt(viewBox.width)) \(fmt(viewBox.height))\" "
         out += "width=\"\(fmt(viewBox.width))\" height=\"\(fmt(viewBox.height))\">\n"
 
-        // Mask geometry lives in <defs>. With `maskUnits="userSpaceOnUse"`
-        // the mask content is evaluated in the user coordinate system at the
-        // reference site — which is already the outer Y-flipped space. The
-        // eraser d-strings are in PDF Y-up coords, same as the painted path
-        // d-strings, so they go in directly. No inner flip (that would cancel
-        // the outer flip and put the mask in the wrong half of the box).
+        // Mask geometry lives in <defs>. Eraser d-strings go in directly —
+        // they share the same already-flipped coordinate space as the painted
+        // paths (both go through the Y-flipped base CTM in the interpreter),
+        // so `maskUnits="userSpaceOnUse"` just works.
         if !maskDefs.isEmpty {
             out += "  <defs>\n"
             for md in maskDefs {
@@ -504,9 +513,6 @@ enum SvgEmitter {
             }
             out += "  </defs>\n"
         }
-
-        // PDF origin is bottom-left, SVG is top-left — flip once at the wrapper.
-        out += "  <g transform=\"matrix(1 0 0 -1 0 \(fmt(viewBox.height)))\">\n"
 
         // Apple's renderer bakes *palette-color* alpha into each path's `ca`
         // (via PDF ExtGState) and we lift it into PdfPath.fillAlpha. But
@@ -595,10 +601,10 @@ enum SvgEmitter {
             if let mId = maskForPainted[pe.paintedIndex] {
                 extra += " mask=\"url(#\(mId))\""
             }
-            out += "    <path data-layer=\"\(tag)\" fill=\"\(fillHex)\"\(extra) d=\"\(p.d.trimmingCharacters(in: .whitespaces))\"/>\n"
+            out += "  <path data-layer=\"\(tag)\" fill=\"\(fillHex)\"\(extra) d=\"\(p.d.trimmingCharacters(in: .whitespaces))\"/>\n"
         }
 
-        out += "  </g>\n</svg>\n"
+        out += "</svg>\n"
         return Data(out.utf8)
     }
 
