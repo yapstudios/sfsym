@@ -81,7 +81,7 @@ sfsym list --category weather --limit 10
 Renders a single symbol. The output format is inferred from the `-o` file extension (`.svg`, `.pdf`, or `.png`); use `-f` to override. The default format is SVG.
 
 ```sh
-sfsym export <name>  [-f pdf|png|svg]
+sfsym export <name>  [-f svg|pdf|png]
                      [--mode monochrome|hierarchical|palette|multicolor]
                      [--weight ultralight|thin|light|regular|medium|semibold|bold|heavy|black]
                      [--scale small|medium|large]

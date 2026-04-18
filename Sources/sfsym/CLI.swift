@@ -128,7 +128,7 @@ let usage = """
 sfsym — export Apple SF Symbols as graphics files.
 
 Usage:
-  sfsym export <name>  [--format pdf|png|svg]        (inferred from -o ext)
+  sfsym export <name>  [--format svg|pdf|png]        (inferred from -o ext)
                        [--mode monochrome|hierarchical|palette|multicolor]
                        [--weight ultralight|thin|light|regular|medium|semibold|bold|heavy|black]
                        [--scale small|medium|large]
