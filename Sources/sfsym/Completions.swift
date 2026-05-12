@@ -62,6 +62,11 @@ _sfsym() {
                 '--size[point size]:pt' \
                 '--color[tint color (hex or systemXxx name)]:color' \
                 '--palette[palette colors, comma-separated]:palette' \
+                '--viewbox[SVG viewBox mode]:viewbox:(nominal tight)' \
+                '--current-color[SVG fills use currentColor]' \
+                '--no-dimensions[SVG omits width/height]' \
+                '--inline-svg[SVG omits XML prolog/xmlns]' \
+                '--web-inline[SVG web-inline preset]' \
                 '(-o --out)'{-o,--out}'[output path (- = stdout)]:path:_files' \
                 '--json[JSON output]'
             ;;
@@ -120,6 +125,7 @@ _sfsym() {
         --mode)      COMPREPLY=( $(compgen -W "monochrome hierarchical palette multicolor" -- "$cur") ); return ;;
         --weight)    COMPREPLY=( $(compgen -W "ultralight thin light regular medium semibold bold heavy black" -- "$cur") ); return ;;
         --scale)     COMPREPLY=( $(compgen -W "small medium large" -- "$cur") ); return ;;
+        --viewbox) COMPREPLY=( $(compgen -W "nominal tight" -- "$cur") ); return ;;
         -o|--out)    COMPREPLY=( $(compgen -f -- "$cur") ); return ;;
     esac
 
@@ -131,7 +137,7 @@ _sfsym() {
                 COMPREPLY=( $(compgen -W "$names" -- "$cur") )
                 return
             fi
-            COMPREPLY=( $(compgen -W "-f --format --mode --weight --scale --size --color --palette -o --out --json" -- "$cur") )
+            COMPREPLY=( $(compgen -W "-f --format --mode --weight --scale --size --color --palette --viewbox --current-color --no-dimensions --inline-svg --web-inline -o --out --json" -- "$cur") )
             ;;
         list)
             COMPREPLY=( $(compgen -W "--prefix --limit --json" -- "$cur") )
@@ -178,6 +184,11 @@ complete -c sfsym -n '__fish_seen_subcommand_from export'      -l scale  -xa 'sm
 complete -c sfsym -n '__fish_seen_subcommand_from export'      -l size   -x                       -d 'point size'
 complete -c sfsym -n '__fish_seen_subcommand_from export'      -l color  -x                       -d 'tint color'
 complete -c sfsym -n '__fish_seen_subcommand_from export'      -l palette -x                      -d 'palette colors (comma-separated)'
+complete -c sfsym -n '__fish_seen_subcommand_from export'      -l viewbox -xa 'nominal tight'      -d 'SVG viewBox mode'
+complete -c sfsym -n '__fish_seen_subcommand_from export'      -l current-color                   -d 'SVG fills use currentColor'
+complete -c sfsym -n '__fish_seen_subcommand_from export'      -l no-dimensions                   -d 'SVG omits width/height'
+complete -c sfsym -n '__fish_seen_subcommand_from export'      -l inline-svg                      -d 'SVG omits XML prolog/xmlns'
+complete -c sfsym -n '__fish_seen_subcommand_from export'      -l web-inline                      -d 'SVG web-inline preset'
 complete -c sfsym -n '__fish_seen_subcommand_from export' -s o -l out    -r                       -d 'output path'
 
 # info / list / modes flags

@@ -63,6 +63,9 @@ sfsym export heart.fill --color '#007AFF80' -o half.svg    # fill-opacity preser
 sfsym export cloud.sun.rain.fill \
   --mode palette --palette '#4477ff,#ffcc00,#ff3b30' -o weather.svg
 
+# Inline-ready SVG for HTML/CSS: tight viewBox, currentColor, no XML noise.
+sfsym export star --size 17 --web-inline -o -
+
 # Vector PDF with Apple's hierarchical opacity ladder.
 sfsym export heart.fill -f pdf --mode hierarchical --color '#007AFF' -o heart.pdf
 
@@ -88,6 +91,11 @@ sfsym export <name>  [-f svg|pdf|png]
                      [--size <int 1..2048>]
                      [--color <hex|systemName>]
                      [--palette <hex,hex,...>]
+                     [--viewbox nominal|tight]
+                     [--current-color]
+                     [--no-dimensions]
+                     [--inline-svg]
+                     [--web-inline]
                      [-o <path>|-]
                      [--json]
 ```
@@ -97,6 +105,14 @@ Colors accept `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, or an Apple system color 
 `--size N` produces a square `N × N`-point canvas in every format. The symbol is scaled uniformly to fit and is centered inside the canvas. PNG output uses 2x pixel density, so `--size 128` becomes a `256 × 256`-pixel file.
 
 In `palette` mode, colors cycle if there are fewer than the symbol has layers, and `sfsym` prints a warning if there are more. Passing `--color` in a mode that ignores it, or `--palette` in a mode that ignores it, prints a one-line warning to stderr.
+
+SVG has a few export-shape options for web embedding:
+
+- `--viewbox tight` crops the SVG viewBox to the visible path bounds, with a small antialiasing bleed. The default is `nominal`, the square `size × size` symbol canvas.
+- `--current-color` emits visible path fills as `currentColor`, while preserving layer tags, masks, fill rules, and opacity.
+- `--no-dimensions` omits `width` and `height` so CSS controls sizing.
+- `--inline-svg` omits the XML declaration and `xmlns` attribute for inline HTML/JSX.
+- `--web-inline` is the common preset: `--viewbox tight --current-color --no-dimensions --inline-svg`.
 
 Passing `--json` with a file path writes the image as usual and prints a JSON summary (`{"name", "format", "path", "bytes"}`) to stdout. Passing `--json` with `-o -` sends the image bytes to stdout and the summary to stderr.
 
@@ -247,7 +263,7 @@ sfsym completions fish > ~/.config/fish/completions/sfsym.fish
 
 ## Output conventions
 
-- **SVG.** Self-contained, with no external CSS. The `viewBox` is `0 0 size size`, a square canvas with the symbol scaled to fit and centered. Path coordinates are in standard SVG space (top-left origin), so `<path>` elements can be lifted directly into JSX or HTML without a wrapper transform. Every `<path>` carries a `fill` attribute (sRGB hex), a `data-layer` attribute (`monochrome-0`, `hierarchical-N`, or `palette-N`), and `fill-opacity` when alpha is less than 1 or when drawing a hierarchical tier. The geometry matches Apple's PDF output exactly.
+- **SVG.** Self-contained, with no external CSS. By default, the `viewBox` is `0 0 size size`, a square canvas with the symbol scaled to fit and centered; `--viewbox tight` crops to the visible path bounds. Path coordinates are in standard SVG space (top-left origin), so `<path>` elements can be lifted directly into JSX or HTML without a wrapper transform. Every `<path>` carries a `fill` attribute (sRGB hex by default, or `currentColor` with `--current-color`), a `data-layer` attribute (`monochrome-0`, `hierarchical-N`, or `palette-N`), and `fill-opacity` when alpha is less than 1 or when drawing a hierarchical tier. The geometry matches Apple's PDF output exactly.
 - **PDF.** Single page, with a `MediaBox` of `size × size` points. Vector for monochrome, hierarchical, and palette modes. Multicolor output embeds a rasterized image.
 - **PNG.** Square output at `2·size × 2·size` pixels (2x pixel density). Rendered under `aqua` so that dynamic colors resolve and half-filled symbols keep their canonical orientation.
 

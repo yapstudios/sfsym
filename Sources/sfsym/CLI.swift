@@ -75,6 +75,14 @@ func parseMode(_ s: String) throws -> RenderMode {
     return m
 }
 
+func parseSvgViewBoxMode(_ s: String) throws -> SvgViewBoxMode {
+    switch s.lowercased() {
+    case "nominal", "default", "square": return .nominal
+    case "tight": return .tight
+    default: throw CLIError.bad("unknown viewBox mode: \(s) (use nominal or tight)")
+    }
+}
+
 func parseColor(_ s: String) throws -> NSColor {
     // Accept #RGB, #RGBA, #RRGGBB, #RRGGBBAA, or named ("red", "systemBlue", "label").
     // Web-style short hex (#f00 → #ff0000) is supported for agent convenience —
@@ -135,6 +143,11 @@ Usage:
                        [--size <pt>]                (default 32, max 2048)
                        [--color <hex|systemName>]     monochrome / hierarchical tint
                        [--palette <hex,hex,…>]        palette mode fills, in layer order
+                       [--viewbox nominal|tight]       SVG only
+                       [--current-color]               SVG path fills use currentColor
+                       [--no-dimensions]               SVG omits width/height
+                       [--inline-svg]                  SVG omits XML prolog/xmlns
+                       [--web-inline]                  shortcut: tight + currentColor + no dimensions + inline
                        [-o <path>|-]                  '-' = stdout (default)
 
   sfsym info <name> [--json]                           layer counts + alignment rect
@@ -168,7 +181,7 @@ Examples:
 
 /// Single source of truth for the tool's version string. Used by `--version`,
 /// the Homebrew formula's test, and the `schema` command.
-let sfsymVersion = "0.2.10"
+let sfsymVersion = "0.2.11"
 
 /// Shared export dispatcher: takes raw argv starting at the symbol name and runs
 /// through format/mode/color/output parsing. Used by both `export` and `batch`.
@@ -194,6 +207,11 @@ func runExportArgv(_ rawArgv: [String]) throws {
     }
     let userGaveColor = rawHasFlag("--color")
     let userGavePalette = rawHasFlag("--palette")
+    let userGaveViewBox = rawHasFlag("--viewbox")
+    let userGaveCurrentColor = rawHasFlag("--current-color")
+    let userGaveNoDimensions = rawHasFlag("--no-dimensions")
+    let userGaveInlineSvg = rawHasFlag("--inline-svg")
+    let userGaveWebInline = rawHasFlag("--web-inline")
     // Consume --json up front so it's not flagged as unknown later. Agents
     // standardize on passing --json; a successful export emits an envelope,
     // and errors already get JSON via main.swift's emitRuntimeError.
@@ -227,6 +245,12 @@ func runExportArgv(_ rawArgv: [String]) throws {
     if outPath.isEmpty {
         throw CLIError.bad("output path cannot be empty (use - for stdout)")
     }
+    let webInline = cli.flag("--web-inline")
+    let currentColor = cli.flag("--current-color") || webInline
+    let noDimensions = cli.flag("--no-dimensions") || webInline
+    let inlineSvg = cli.flag("--inline-svg") || webInline
+    let viewBoxRaw = cli.optValue("--viewbox")
+    let viewBoxMode = try parseSvgViewBoxMode(viewBoxRaw ?? (webInline ? "tight" : "nominal"))
 
     // Reject typo'd flags: anything left after option parsing is unconsumed.
     if cli.cursor < cli.args.count {
@@ -278,11 +302,22 @@ func runExportArgv(_ rawArgv: [String]) throws {
     if userGavePalette && (mode == .monochrome || mode == .hierarchical || mode == .multicolor) {
         FileHandle.standardError.write(Data("warning: --palette is ignored in \(mode.rawValue) mode\n".utf8))
     }
+    let userGaveSvgShapeOption = userGaveViewBox || userGaveCurrentColor || userGaveNoDimensions || userGaveInlineSvg || userGaveWebInline
+    if format.lowercased() != "svg" && userGaveSvgShapeOption {
+        FileHandle.standardError.write(Data("warning: SVG export-shape options are ignored for \(format.lowercased()) output\n".utf8))
+    }
 
     let resolvedTint = tint.usingColorSpace(.sRGB) ?? tint
     var opts = RenderOptions(name: name, mode: mode, weight: weight, scale: scale,
                              pointSize: size, tint: resolvedTint, paletteColors: palette)
     opts.paletteColors = opts.paletteColors.map { $0.usingColorSpace(.sRGB) ?? $0 }
+    opts.svg = SvgOptions(
+        viewBoxMode: viewBoxMode,
+        currentColor: currentColor,
+        includeDimensions: !noDimensions,
+        includeXMLDeclaration: !inlineSvg,
+        includeXMLNamespace: !inlineSvg
+    )
 
     let data: Data
     let resolvedFormat: String
@@ -722,6 +757,17 @@ let cliSchema: [String: Any] = [
                 ["name": "--palette", "type": "string",
                  "default": "systemRed,systemGreen,systemBlue",
                  "description": "Comma-separated colors for palette mode, one per palette layer. If fewer colors are passed than the symbol has palette layers, colors cycle (colors[i % count]) and a 'warning: --palette has N color(s) but symbol has M palette layers; cycling' line is emitted on stderr. If more colors are passed than layers, the extras are dropped and 'warning: --palette has N colors but symbol has M palette layer(s); extras ignored' is emitted. Emits 'warning: --palette is ignored in <mode> mode' on stderr if explicitly passed with --mode monochrome/hierarchical/multicolor (render still proceeds)."],
+                ["name": "--viewbox", "type": "enum",
+                 "choices": ["nominal", "tight"], "default": "nominal",
+                 "description": "SVG only. 'nominal' emits the square size×size canvas. 'tight' crops the viewBox to visible path bounds with a small optical bleed."],
+                ["name": "--current-color", "type": "bool", "default": false,
+                 "description": "SVG only. Emit visible path fills as currentColor while preserving layer tags, masks, fill rules, and opacity."],
+                ["name": "--no-dimensions", "type": "bool", "default": false,
+                 "description": "SVG only. Omit width and height so CSS controls sizing."],
+                ["name": "--inline-svg", "type": "bool", "default": false,
+                 "description": "SVG only. Omit the XML declaration and xmlns attribute for inline HTML/JSX embedding."],
+                ["name": "--web-inline", "type": "bool", "default": false,
+                 "description": "SVG only. Shortcut for --viewbox tight --current-color --no-dimensions --inline-svg."],
                 ["name": "-o", "long": "--out", "type": "path", "default": "-",
                  "description": "Output path. '-' writes to stdout."],
                 ["name": "--json", "type": "bool", "default": false,
@@ -736,7 +782,8 @@ let cliSchema: [String: Any] = [
             "examples": [
                 "sfsym export heart.fill -f svg --color '#ff3b30' -o heart.svg",
                 "sfsym export cloud.sun.rain.fill -f svg --mode palette --palette '#ff3b30,#ffcc00,#4477ff' -o weather.svg",
-                "sfsym export heart.fill -f svg --json -o heart.svg"
+                "sfsym export heart.fill -f svg --json -o heart.svg",
+                "sfsym export star --size 17 --web-inline -o -"
             ]
         ],
         [

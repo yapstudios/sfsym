@@ -409,6 +409,7 @@ enum SvgEmitter {
         paths: [PdfPath],
         viewBox: CGRect,
         mode: RenderMode,
+        svgOptions: SvgOptions = SvgOptions(),
         tintColor: CGColor? = nil,
         paletteColors: [CGColor] = [],
         hierarchyLevels: [Int] = []
@@ -458,6 +459,13 @@ enum SvgEmitter {
             gapErasers[gapErasers.count - 1].append(contentsOf: pendingErasers)
         }
 
+        let outputViewBox: CGRect
+        if svgOptions.viewBoxMode == .tight, let tight = tightViewBox(for: painted.map(\.path.d)) {
+            outputViewBox = tight
+        } else {
+            outputViewBox = viewBox
+        }
+
         // For each painted path i, compose "erasers after me" = union of
         // gapErasers[i+1 ... end]. Same list for multiple painted paths
         // collapses to a shared mask.
@@ -487,10 +495,16 @@ enum SvgEmitter {
             }
         }
 
-        var out = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        out += "<svg xmlns=\"http://www.w3.org/2000/svg\" "
-        out += "viewBox=\"\(fmt(viewBox.minX)) \(fmt(viewBox.minY)) \(fmt(viewBox.width)) \(fmt(viewBox.height))\" "
-        out += "width=\"\(fmt(viewBox.width))\" height=\"\(fmt(viewBox.height))\">\n"
+        var out = svgOptions.includeXMLDeclaration ? "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" : ""
+        out += "<svg"
+        if svgOptions.includeXMLNamespace {
+            out += " xmlns=\"http://www.w3.org/2000/svg\""
+        }
+        out += " viewBox=\"\(fmt(outputViewBox.minX)) \(fmt(outputViewBox.minY)) \(fmt(outputViewBox.width)) \(fmt(outputViewBox.height))\""
+        if svgOptions.includeDimensions {
+            out += " width=\"\(fmt(outputViewBox.width))\" height=\"\(fmt(outputViewBox.height))\""
+        }
+        out += ">\n"
 
         // Mask geometry lives in <defs>. Eraser d-strings go in directly —
         // they share the same already-flipped coordinate space as the painted
@@ -500,11 +514,11 @@ enum SvgEmitter {
             out += "  <defs>\n"
             for md in maskDefs {
                 out += "    <mask id=\"\(md.id)\" maskUnits=\"userSpaceOnUse\" "
-                out += "x=\"\(fmt(viewBox.minX))\" y=\"\(fmt(viewBox.minY))\" "
-                out += "width=\"\(fmt(viewBox.width))\" height=\"\(fmt(viewBox.height))\">\n"
+                out += "x=\"\(fmt(outputViewBox.minX))\" y=\"\(fmt(outputViewBox.minY))\" "
+                out += "width=\"\(fmt(outputViewBox.width))\" height=\"\(fmt(outputViewBox.height))\">\n"
                 // White everywhere the painted layer survives by default.
-                out += "      <rect x=\"\(fmt(viewBox.minX))\" y=\"\(fmt(viewBox.minY))\" "
-                out += "width=\"\(fmt(viewBox.width))\" height=\"\(fmt(viewBox.height))\" fill=\"white\"/>\n"
+                out += "      <rect x=\"\(fmt(outputViewBox.minX))\" y=\"\(fmt(outputViewBox.minY))\" "
+                out += "width=\"\(fmt(outputViewBox.width))\" height=\"\(fmt(outputViewBox.height))\" fill=\"white\"/>\n"
                 for e in md.erasers {
                     let rule = e.fillRule == .evenodd ? " fill-rule=\"evenodd\"" : ""
                     out += "      <path fill=\"black\"\(rule) d=\"\(e.d.trimmingCharacters(in: .whitespaces))\"/>\n"
@@ -601,11 +615,193 @@ enum SvgEmitter {
             if let mId = maskForPainted[pe.paintedIndex] {
                 extra += " mask=\"url(#\(mId))\""
             }
-            out += "  <path data-layer=\"\(tag)\" fill=\"\(fillHex)\"\(extra) d=\"\(p.d.trimmingCharacters(in: .whitespaces))\"/>\n"
+            let paint = svgOptions.currentColor ? "currentColor" : fillHex
+            out += "  <path data-layer=\"\(tag)\" fill=\"\(paint)\"\(extra) d=\"\(p.d.trimmingCharacters(in: .whitespaces))\"/>\n"
         }
 
         out += "</svg>\n"
         return Data(out.utf8)
+    }
+
+    /// Compute a tight, path-bounds viewBox over visible painted paths. This is
+    /// an endpoint/control-point bbox; Beziers stay inside their control
+    /// polygon, and arcs are deliberately over-approximated.
+    private static func tightViewBox(for pathData: [String]) -> CGRect? {
+        var bounds: PathBounds?
+        for d in pathData {
+            guard let b = pathBounds(d) else { continue }
+            if var current = bounds {
+                current.include(b)
+                bounds = current
+            } else {
+                bounds = b
+            }
+        }
+        guard var b = bounds else { return nil }
+        // Tiny optical bleed prevents antialiasing from clipping at the edge.
+        b.minX -= 0.5
+        b.minY -= 0.5
+        b.maxX += 0.5
+        b.maxY += 0.5
+        guard b.maxX > b.minX, b.maxY > b.minY else { return nil }
+        return CGRect(x: b.minX, y: b.minY, width: b.maxX - b.minX, height: b.maxY - b.minY)
+    }
+
+    private struct PathBounds {
+        var minX = CGFloat.infinity
+        var minY = CGFloat.infinity
+        var maxX = -CGFloat.infinity
+        var maxY = -CGFloat.infinity
+
+        mutating func include(_ x: CGFloat, _ y: CGFloat) {
+            guard x.isFinite, y.isFinite else { return }
+            minX = min(minX, x)
+            minY = min(minY, y)
+            maxX = max(maxX, x)
+            maxY = max(maxY, y)
+        }
+
+        mutating func include(_ other: PathBounds) {
+            include(other.minX, other.minY)
+            include(other.maxX, other.maxY)
+        }
+
+        var hasArea: Bool {
+            minX.isFinite && minY.isFinite && maxX.isFinite && maxY.isFinite
+        }
+    }
+
+    private enum PathToken {
+        case command(Character)
+        case number(CGFloat)
+    }
+
+    private static func pathBounds(_ d: String) -> PathBounds? {
+        let tokens = tokenizePathData(d)
+        var i = 0
+        var command: Character?
+        var cx: CGFloat = 0
+        var cy: CGFloat = 0
+        var sx: CGFloat = 0
+        var sy: CGFloat = 0
+        var bounds = PathBounds()
+
+        func nextNumber() -> CGFloat? {
+            guard i < tokens.count else { return nil }
+            guard case .number(let n) = tokens[i] else { return nil }
+            i += 1
+            return n
+        }
+
+        while i < tokens.count {
+            if case .command(let c) = tokens[i] {
+                command = c
+                i += 1
+            }
+            guard let c = command else { return nil }
+            let lower = Character(String(c).lowercased())
+            let relative = String(c) != String(c).uppercased()
+
+            switch lower {
+            case "m":
+                guard let x0 = nextNumber(), let y0 = nextNumber() else { return nil }
+                let x = relative ? cx + x0 : x0
+                let y = relative ? cy + y0 : y0
+                cx = x; cy = y; sx = x; sy = y
+                bounds.include(cx, cy)
+                command = relative ? "l" : "L"
+            case "l":
+                guard let x0 = nextNumber(), let y0 = nextNumber() else { return nil }
+                cx = relative ? cx + x0 : x0
+                cy = relative ? cy + y0 : y0
+                bounds.include(cx, cy)
+            case "h":
+                guard let x0 = nextNumber() else { return nil }
+                cx = relative ? cx + x0 : x0
+                bounds.include(cx, cy)
+            case "v":
+                guard let y0 = nextNumber() else { return nil }
+                cy = relative ? cy + y0 : y0
+                bounds.include(cx, cy)
+            case "c":
+                guard let x10 = nextNumber(), let y10 = nextNumber(),
+                      let x20 = nextNumber(), let y20 = nextNumber(),
+                      let x30 = nextNumber(), let y30 = nextNumber()
+                else { return nil }
+                let x1 = relative ? cx + x10 : x10
+                let y1 = relative ? cy + y10 : y10
+                let x2 = relative ? cx + x20 : x20
+                let y2 = relative ? cy + y20 : y20
+                let x3 = relative ? cx + x30 : x30
+                let y3 = relative ? cy + y30 : y30
+                bounds.include(x1, y1)
+                bounds.include(x2, y2)
+                bounds.include(x3, y3)
+                cx = x3; cy = y3
+            case "s":
+                guard let x20 = nextNumber(), let y20 = nextNumber(),
+                      let x30 = nextNumber(), let y30 = nextNumber()
+                else { return nil }
+                let x2 = relative ? cx + x20 : x20
+                let y2 = relative ? cy + y20 : y20
+                let x3 = relative ? cx + x30 : x30
+                let y3 = relative ? cy + y30 : y30
+                bounds.include(x2, y2)
+                bounds.include(x3, y3)
+                cx = x3; cy = y3
+            case "q":
+                guard let x10 = nextNumber(), let y10 = nextNumber(),
+                      let x20 = nextNumber(), let y20 = nextNumber()
+                else { return nil }
+                let x1 = relative ? cx + x10 : x10
+                let y1 = relative ? cy + y10 : y10
+                let x2 = relative ? cx + x20 : x20
+                let y2 = relative ? cy + y20 : y20
+                bounds.include(x1, y1)
+                bounds.include(x2, y2)
+                cx = x2; cy = y2
+            case "t":
+                guard let x0 = nextNumber(), let y0 = nextNumber() else { return nil }
+                cx = relative ? cx + x0 : x0
+                cy = relative ? cy + y0 : y0
+                bounds.include(cx, cy)
+            case "a":
+                guard let rx0 = nextNumber(), let ry0 = nextNumber(),
+                      nextNumber() != nil, nextNumber() != nil, nextNumber() != nil,
+                      let x0 = nextNumber(), let y0 = nextNumber()
+                else { return nil }
+                let rx = abs(rx0)
+                let ry = abs(ry0)
+                let x = relative ? cx + x0 : x0
+                let y = relative ? cy + y0 : y0
+                bounds.include(x - rx, y - ry)
+                bounds.include(x + rx, y + ry)
+                cx = x; cy = y
+            case "z":
+                cx = sx; cy = sy
+                bounds.include(cx, cy)
+                command = nil
+            default:
+                return nil
+            }
+        }
+
+        return bounds.hasArea ? bounds : nil
+    }
+
+    private static func tokenizePathData(_ d: String) -> [PathToken] {
+        let pattern = #"[A-DF-Za-df-z]|[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?"#
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let ns = d as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        return re.matches(in: d, options: [], range: range).compactMap { match in
+            let raw = ns.substring(with: match.range)
+            if raw.count == 1, let ch = raw.first, ch.isLetter {
+                return .command(ch)
+            }
+            guard let number = Double(raw) else { return nil }
+            return .number(CGFloat(number))
+        }
     }
 
     /// Format an alpha value for SVG `fill-opacity`: 3 decimal places, trailing

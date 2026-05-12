@@ -5,6 +5,18 @@ enum RenderMode: String {
     case monochrome, hierarchical, palette, multicolor
 }
 
+enum SvgViewBoxMode: String {
+    case nominal, tight
+}
+
+struct SvgOptions {
+    var viewBoxMode: SvgViewBoxMode = .nominal
+    var currentColor: Bool = false
+    var includeDimensions: Bool = true
+    var includeXMLDeclaration: Bool = true
+    var includeXMLNamespace: Bool = true
+}
+
 struct RenderOptions {
     var name: String
     var mode: RenderMode = .monochrome
@@ -16,6 +28,8 @@ struct RenderOptions {
     var tint: NSColor = .labelColor
     /// Palette fills in layer order.
     var paletteColors: [NSColor] = [.systemRed, .systemGreen, .systemBlue]
+    /// SVG-only export shape controls.
+    var svg: SvgOptions = SvgOptions()
 }
 
 enum Render {
@@ -198,6 +212,7 @@ enum Render {
             paths: paths,
             viewBox: CGRect(origin: .zero, size: canvas),
             mode: opts.mode,
+            svgOptions: opts.svg,
             tintColor: opts.tint.cgColor,
             paletteColors: paletteCG,
             // Pass hierarchy levels for explicit hierarchical mode and for
